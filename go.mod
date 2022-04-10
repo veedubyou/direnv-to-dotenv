@@ -1,4 +1,4 @@
-module direnv-to-dotenv
+module github.com/veedubyou/direnv-to-dotenv
 
 go 1.18
 
