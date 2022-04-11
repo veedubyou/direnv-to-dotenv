@@ -1,7 +1,9 @@
 package main
 
 import (
+	"flag"
 	"fmt"
+	"github.com/atotto/clipboard"
 	"github.com/veedubyou/xerr"
 	"os"
 	"os/exec"
@@ -15,21 +17,36 @@ func must(err error) {
 }
 
 func main() {
+	printOption := flag.Bool("print", false,
+		"Prints the env statements instead of copying to the clipboard. By default the statements are copied to the clipboard, set this to true to show them in the terminal instead")
+	flag.Parse()
+
 	direnvOutput, err := runDirenvAllow()
 	must(err)
 
 	envVars, err := filterExportedEnvVars(direnvOutput)
 	must(err)
 
-	jetbrainsOutput := ""
-	for _, envVarKey := range envVars {
-		value := mustGetEnv(envVarKey)
-		jetbrainsOutput += fmt.Sprintf("%s=%s\n", envVarKey, value)
-	}
+	envStatements := resolveEnvKeysToStatements(envVars)
 
+	if !*printOption {
+		copyEnvOutput(envStatements)
+	} else {
+		printEnvOutput(envStatements)
+	}
+}
+
+func copyEnvOutput(envOutput []string) {
+	joinedOutput := strings.Join(envOutput, "\n")
+	must(clipboard.WriteAll(joinedOutput))
+	fmt.Println("Copied env vars to clipboard")
+}
+
+func printEnvOutput(envOutput []string) {
+	joinedOutput := strings.Join(envOutput, "\n")
 	fmt.Println("Paste in the following env into Jetbrains:")
 	printHeader()
-	fmt.Println(jetbrainsOutput)
+	fmt.Println(joinedOutput)
 	printFooter()
 }
 
@@ -57,6 +74,17 @@ func filterExportedEnvVars(direnvOutput string) ([]string, error) {
 
 	return nil, xe.Field("direnv-output", direnvOutput).
 		Error("Could not find direnv export line")
+}
+
+func resolveEnvKeysToStatements(envVarKeys []string) []string {
+	envStatements := []string{}
+	for _, envVarKey := range envVarKeys {
+		value := mustGetEnv(envVarKey)
+		envLine := fmt.Sprintf("%s=%s", envVarKey, value)
+		envStatements = append(envStatements, envLine)
+	}
+
+	return envStatements
 }
 
 func runDirenvAllow() (string, error) {
